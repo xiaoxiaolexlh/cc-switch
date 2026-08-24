@@ -40,10 +40,24 @@ gh repo edit xiaoxiaolexlh/cc-switch --default-branch custom/main
 | `UPSTREAM_RELEASE_SMTP_PASSWORD` | SMTP 密码或邮箱服务商生成的应用专用密码             |
 | `UPSTREAM_RELEASE_SMTP_FROM`     | 邮件 From 地址，通常与用户名相同                    |
 | `UPSTREAM_RELEASE_SMTP_TO`       | 固定收件邮箱                                        |
+| `UPSTREAM_RELEASE_STATE_TOKEN`   | 只用于更新 Repository Variable 的 fine-grained PAT  |
 
 不要把密码、授权码或邮箱凭据提交到 Git。缺少必需 Secret 时，发送步骤会列出缺少的 Secret 名称，但不会输出任何 Secret 值。
 
 `LAST_UPSTREAM_RELEASE_TAG` 不需要手动创建，第一次成功运行会自动建立。
+
+### 创建状态 Token
+
+默认的 `GITHUB_TOKEN` 不能更新 Repository Variable，会返回 `403 Resource not accessible by integration`。因此需要创建一个权限受限的 fine-grained personal access token：
+
+1. 打开 GitHub `Settings -> Developer settings -> Personal access tokens -> Fine-grained tokens`。
+2. Resource owner 选择 `xiaoxiaolexlh`。
+3. Repository access 只选择 `cc-switch`。
+4. Repository permissions 只给 `Variables: Read and write`。
+5. 设置合理的过期时间并创建 Token。
+6. 把 Token 保存为仓库 Actions Secret `UPSTREAM_RELEASE_STATE_TOKEN`。
+
+不要使用本机 `gh auth token` 代替。该 Token 通常拥有比变量写入更大的权限，不适合长期保存在 Actions Secrets 中。
 
 ## 首次启用
 

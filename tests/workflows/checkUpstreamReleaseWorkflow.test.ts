@@ -18,6 +18,12 @@ describe("upstream release notification workflow", () => {
   });
 
   it("silently establishes the first baseline and ignores a repeated tag", () => {
+    expect(workflow).toContain(
+      "PREVIOUS_TAG: ${{ vars.LAST_UPSTREAM_RELEASE_TAG }}",
+    );
+    expect(workflow).toContain(
+      "STATE_TOKEN: ${{ secrets.UPSTREAM_RELEASE_STATE_TOKEN }}",
+    );
     expect(workflow).toContain('if [[ -z "$previous" ]]');
     expect(workflow).toContain('elif [[ "$previous" == "$RELEASE_TAG" ]]');
     expect(workflow.match(/echo "notify=false"/g)).toHaveLength(2);
@@ -33,9 +39,17 @@ describe("upstream release notification workflow", () => {
     );
     expect(workflow).toContain("secrets.UPSTREAM_RELEASE_SMTP_PASSWORD");
     expect(workflow).toContain("secrets.UPSTREAM_RELEASE_SMTP_TO");
+    expect(workflow).toContain('"UPSTREAM_RELEASE_STATE_TOKEN"');
     expect(workflow).toContain("Missing GitHub Actions secrets:");
     expect(workflow).toContain(
       "server.starttls(context=ssl.create_default_context())",
+    );
+  });
+
+  it("does not rely on the limited workflow token to update variables", () => {
+    expect(workflow).not.toContain("actions: write");
+    expect(workflow).toContain(
+      "GH_TOKEN: ${{ secrets.UPSTREAM_RELEASE_STATE_TOKEN }}",
     );
   });
 });

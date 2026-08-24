@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: read
-  actions: write
 
 concurrency:
   group: upstream-release-notification
@@ -50,14 +49,19 @@ jobs:
         if: steps.release.outputs.tag != ''
         id: baseline
         env:
-          GH_TOKEN: ${{ github.token }}
+          PREVIOUS_TAG: ${{ vars.LAST_UPSTREAM_RELEASE_TAG }}
+          STATE_TOKEN: ${{ secrets.UPSTREAM_RELEASE_STATE_TOKEN }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
-          previous="$(gh variable get LAST_UPSTREAM_RELEASE_TAG --repo "$GITHUB_REPOSITORY" 2>/dev/null || true)"
+          previous="$PREVIOUS_TAG"
           if [[ -z "$previous" ]]; then
-            gh variable set LAST_UPSTREAM_RELEASE_TAG --repo "$GITHUB_REPOSITORY" --body "$RELEASE_TAG"
+            if [[ -z "$STATE_TOKEN" ]]; then
+              echo "::error::Missing GitHub Actions secret: UPSTREAM_RELEASE_STATE_TOKEN"
+              exit 1
+            fi
+            GH_TOKEN="$STATE_TOKEN" gh variable set LAST_UPSTREAM_RELEASE_TAG --repo "$GITHUB_REPOSITORY" --body "$RELEASE_TAG"
             echo "notify=false" >> "$GITHUB_OUTPUT"
           elif [[ "$previous" == "$RELEASE_TAG" ]]; then
             echo "notify=false" >> "$GITHUB_OUTPUT"
@@ -74,6 +78,7 @@ jobs:
           SMTP_PASSWORD: ${{ secrets.UPSTREAM_RELEASE_SMTP_PASSWORD }}
           SMTP_FROM: ${{ secrets.UPSTREAM_RELEASE_SMTP_FROM }}
           SMTP_TO: ${{ secrets.UPSTREAM_RELEASE_SMTP_TO }}
+          STATE_TOKEN: ${{ secrets.UPSTREAM_RELEASE_STATE_TOKEN }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           RELEASE_NAME: ${{ steps.release.outputs.name }}
           RELEASE_URL: ${{ steps.release.outputs.url }}
@@ -91,6 +96,7 @@ jobs:
               "UPSTREAM_RELEASE_SMTP_PASSWORD": os.environ["SMTP_PASSWORD"],
               "UPSTREAM_RELEASE_SMTP_FROM": os.environ["SMTP_FROM"],
               "UPSTREAM_RELEASE_SMTP_TO": os.environ["SMTP_TO"],
+              "UPSTREAM_RELEASE_STATE_TOKEN": os.environ["STATE_TOKEN"],
           }
           missing = [name for name, value in required.items() if not value.strip()]
           if missing:
@@ -117,6 +123,6 @@ jobs:
       - name: Record notified tag
         if: steps.baseline.outputs.notify == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.UPSTREAM_RELEASE_STATE_TOKEN }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: gh variable set LAST_UPSTREAM_RELEASE_TAG --repo "$GITHUB_REPOSITORY" --body "$RELEASE_TAG"
