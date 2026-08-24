@@ -208,6 +208,18 @@ describe("App integration with MSW", () => {
     localStorage.removeItem("cc-switch-last-app");
   });
 
+  it("keeps provider group controls below the original header", async () => {
+    const { default: App } = await import("@/App");
+    renderApp(App);
+
+    const groupSelector = await screen.findByRole("group", {
+      name: "显示分组",
+    });
+
+    expect(groupSelector.closest("header")).toBeNull();
+    expect(groupSelector.closest("main")).not.toBeNull();
+  });
+
   it("covers basic provider flows via real hooks", async () => {
     const { default: App } = await import("@/App");
     renderApp(App);
