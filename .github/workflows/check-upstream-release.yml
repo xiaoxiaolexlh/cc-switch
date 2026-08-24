@@ -9,6 +9,10 @@ permissions:
   contents: read
   actions: write
 
+concurrency:
+  group: upstream-release-notification
+  cancel-in-progress: false
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -78,7 +82,21 @@ jobs:
         run: |
           import os
           import smtplib
+          import ssl
           from email.message import EmailMessage
+
+          required = {
+              "UPSTREAM_RELEASE_SMTP_HOST": os.environ["SMTP_HOST"],
+              "UPSTREAM_RELEASE_SMTP_USERNAME": os.environ["SMTP_USERNAME"],
+              "UPSTREAM_RELEASE_SMTP_PASSWORD": os.environ["SMTP_PASSWORD"],
+              "UPSTREAM_RELEASE_SMTP_FROM": os.environ["SMTP_FROM"],
+              "UPSTREAM_RELEASE_SMTP_TO": os.environ["SMTP_TO"],
+          }
+          missing = [name for name, value in required.items() if not value.strip()]
+          if missing:
+              raise SystemExit(
+                  "Missing GitHub Actions secrets: " + ", ".join(missing)
+              )
 
           message = EmailMessage()
           message["Subject"] = f"cc-switch upstream release: {os.environ['RELEASE_TAG']}"
@@ -92,7 +110,7 @@ jobs:
           smtp = smtplib.SMTP_SSL if port == 465 else smtplib.SMTP
           with smtp(os.environ["SMTP_HOST"], port, timeout=30) as server:
               if port != 465:
-                  server.starttls()
+                  server.starttls(context=ssl.create_default_context())
               server.login(os.environ["SMTP_USERNAME"], os.environ["SMTP_PASSWORD"])
               server.send_message(message)
 

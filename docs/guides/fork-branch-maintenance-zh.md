@@ -278,3 +278,5 @@ git config merge.conflictStyle zdiff3
 ```
 
 本文只描述本地 fork 的维护流程；如果要向官方仓库提交 Pull Request，仍需遵循仓库根目录 `CONTRIBUTING.md` 的要求。
+
+上游正式 Release 邮件通知的默认分支、SMTP Secrets 和首次基线配置见 [上游正式版本邮件通知配置](./upstream-release-notification-zh.md)。

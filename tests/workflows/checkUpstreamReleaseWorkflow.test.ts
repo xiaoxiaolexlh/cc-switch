@@ -10,6 +10,8 @@ const workflow = readFileSync(
 describe("upstream release notification workflow", () => {
   it("runs every six hours and filters drafts and prereleases", () => {
     expect(workflow).toContain('cron: "17 */6 * * *"');
+    expect(workflow).toContain("group: upstream-release-notification");
+    expect(workflow).toContain("cancel-in-progress: false");
     expect(workflow).toContain(
       "select(.draft == false and .prerelease == false)",
     );
@@ -31,5 +33,9 @@ describe("upstream release notification workflow", () => {
     );
     expect(workflow).toContain("secrets.UPSTREAM_RELEASE_SMTP_PASSWORD");
     expect(workflow).toContain("secrets.UPSTREAM_RELEASE_SMTP_TO");
+    expect(workflow).toContain("Missing GitHub Actions secrets:");
+    expect(workflow).toContain(
+      "server.starttls(context=ssl.create_default_context())",
+    );
   });
 });
