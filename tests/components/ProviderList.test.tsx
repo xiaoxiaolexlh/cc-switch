@@ -268,6 +268,173 @@ describe("ProviderList Component", () => {
     );
   });
 
+  it("passes the group-edit drag handle into ProviderCard", async () => {
+    const provider = createProvider({ id: "a", name: "A" });
+    useDragSortMock.mockReturnValue({
+      sortedProviders: [provider],
+      sensors: [],
+      handleDragEnd: vi.fn(),
+    });
+    server.use(
+      http.post(`${TAURI_ENDPOINT}/get_provider_groups`, () =>
+        HttpResponse.json({
+          version: 1,
+          groups: [
+            {
+              id: "default",
+              name: "默认分组",
+              order: 0,
+              providerIds: ["a"],
+            },
+          ],
+        }),
+      ),
+    );
+
+    renderWithQueryClient(
+      <ProviderList
+        providers={{ a: provider }}
+        currentProviderId=""
+        appId="claude"
+        onSwitch={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onDuplicate={vi.fn()}
+        onOpenWebsite={vi.fn()}
+        displayMode="group-edit"
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("drag-attr-a")).toHaveTextContent("provider:a"),
+    );
+    expect(
+      screen.queryByRole("button", { name: "拖动供应商到其他分组" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("filters visible provider groups with all, single, and multiple selection", async () => {
+    const providerA = createProvider({ id: "a", name: "A" });
+    const providerB = createProvider({ id: "b", name: "B" });
+    const providerC = createProvider({ id: "c", name: "C" });
+    useDragSortMock.mockReturnValue({
+      sortedProviders: [providerA, providerB, providerC],
+      sensors: [],
+      handleDragEnd: vi.fn(),
+    });
+    server.use(
+      http.post(`${TAURI_ENDPOINT}/get_provider_groups`, () =>
+        HttpResponse.json({
+          version: 1,
+          groups: [
+            {
+              id: "default",
+              name: "默认分组",
+              order: 0,
+              providerIds: ["a"],
+            },
+            {
+              id: "one",
+              name: "分组一",
+              order: 1,
+              providerIds: ["b"],
+            },
+            {
+              id: "two",
+              name: "分组二",
+              order: 2,
+              providerIds: ["c"],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <ProviderList
+          providers={{ a: providerA, b: providerB, c: providerC }}
+          currentProviderId=""
+          appId="claude"
+          onSwitch={vi.fn()}
+          onEdit={vi.fn()}
+          onDelete={vi.fn()}
+          onDuplicate={vi.fn()}
+          onOpenWebsite={vi.fn()}
+          displayMode="groups"
+          visibleGroupIds={null}
+        />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("provider-card-c")).toBeInTheDocument(),
+    );
+
+    view.rerender(
+      <QueryClientProvider client={queryClient}>
+        <ProviderList
+          providers={{ a: providerA, b: providerB, c: providerC }}
+          currentProviderId=""
+          appId="claude"
+          onSwitch={vi.fn()}
+          onEdit={vi.fn()}
+          onDelete={vi.fn()}
+          onDuplicate={vi.fn()}
+          onOpenWebsite={vi.fn()}
+          displayMode="groups"
+          visibleGroupIds={["default"]}
+        />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByTestId("provider-card-a")).toBeInTheDocument();
+    expect(screen.queryByTestId("provider-card-b")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("provider-card-c")).not.toBeInTheDocument();
+
+    view.rerender(
+      <QueryClientProvider client={queryClient}>
+        <ProviderList
+          providers={{ a: providerA, b: providerB, c: providerC }}
+          currentProviderId=""
+          appId="claude"
+          onSwitch={vi.fn()}
+          onEdit={vi.fn()}
+          onDelete={vi.fn()}
+          onDuplicate={vi.fn()}
+          onOpenWebsite={vi.fn()}
+          displayMode="groups"
+          visibleGroupIds={["default", "one"]}
+        />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByTestId("provider-card-a")).toBeInTheDocument();
+    expect(screen.getByTestId("provider-card-b")).toBeInTheDocument();
+    expect(screen.queryByTestId("provider-card-c")).not.toBeInTheDocument();
+
+    view.rerender(
+      <QueryClientProvider client={queryClient}>
+        <ProviderList
+          providers={{ a: providerA, b: providerB, c: providerC }}
+          currentProviderId=""
+          appId="claude"
+          onSwitch={vi.fn()}
+          onEdit={vi.fn()}
+          onDelete={vi.fn()}
+          onDuplicate={vi.fn()}
+          onOpenWebsite={vi.fn()}
+          displayMode="groups"
+          visibleGroupIds={null}
+        />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByTestId("provider-card-a")).toBeInTheDocument();
+    expect(screen.getByTestId("provider-card-b")).toBeInTheDocument();
+    expect(screen.getByTestId("provider-card-c")).toBeInTheDocument();
+  });
+
   it("filters providers with the search input", () => {
     const providerAlpha = createProvider({ id: "alpha", name: "Alpha Labs" });
     const providerBeta = createProvider({ id: "beta", name: "Beta Works" });

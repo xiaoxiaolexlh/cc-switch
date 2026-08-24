@@ -57,6 +57,21 @@ export const handlers = [
     return success(getCurrentProviderId(app));
   }),
 
+  http.post(`${TAURI_ENDPOINT}/get_provider_groups`, async ({ request }) => {
+    const { app } = await withJson<{ app: AppId }>(request);
+    return success({
+      version: 1,
+      groups: [
+        {
+          id: "default",
+          name: "默认分组",
+          order: 0,
+          providerIds: Object.keys(getProviders(app)),
+        },
+      ],
+    });
+  }),
+
   http.post(
     `${TAURI_ENDPOINT}/update_providers_sort_order`,
     async ({ request }) => {

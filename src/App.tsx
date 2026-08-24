@@ -112,6 +112,8 @@ import {
   DEFAULT_VISIBLE_APPS,
   isProxyAppId,
 } from "@/config/appConfig";
+import { ProviderGroupsToolbar } from "@/features/provider-groups/ProviderGroupsToolbar";
+import { useProviderGroupsController } from "@/features/provider-groups/useProviderGroupsController";
 
 type View =
   | "providers"
@@ -297,6 +299,11 @@ function App() {
   const { data: piCurrentState } = usePiCurrentState(activeApp === "pi");
   const providers = useMemo(() => data?.providers ?? {}, [data]);
   const currentProviderId = data?.currentProviderId ?? "";
+  const providerGroups = useProviderGroupsController({
+    appId: activeApp,
+    providers,
+    enabled: currentView === "providers",
+  });
   const isOpenClawView =
     activeApp === "openclaw" &&
     (currentView === "providers" ||
@@ -712,7 +719,15 @@ function App() {
     originalId?: string;
   }) => {
     await updateProvider(provider, originalId);
+    await providerGroups.afterProviderIdChanged(originalId, provider.id);
     setEditingProvider(null);
+  };
+
+  const handleAddProvider = async (
+    provider: Parameters<typeof addProvider>[0],
+  ) => {
+    await addProvider(provider);
+    await providerGroups.afterProviderAdded();
   };
 
   const handleConfirmAction = async () => {
@@ -771,6 +786,7 @@ function App() {
       );
     } else {
       await deleteProvider(provider.id);
+      await providerGroups.afterProviderDeleted(provider.id);
     }
     setConfirmAction(null);
   };
@@ -891,7 +907,7 @@ function App() {
       }
     }
 
-    await addProvider(duplicatedProvider);
+    await handleAddProvider(duplicatedProvider);
   };
 
   const confirmActionMessage = useMemo(() => {
@@ -950,6 +966,7 @@ function App() {
         queryKey: ["providers"],
         type: "all",
       });
+      await providerGroups.afterProvidersImported();
     } catch (error) {
       console.error("[App] Failed to refresh providers after import", error);
       await refetch();
@@ -1152,6 +1169,7 @@ function App() {
                             ? switchProvider
                             : undefined
                       }
+                      {...providerGroups.listProps}
                     />
                   </motion.div>
                 </AnimatePresence>
@@ -1745,6 +1763,11 @@ function App() {
       </header>
 
       <main className="flex-1 min-h-0 flex flex-col overflow-y-auto animate-fade-in">
+        {currentView === "providers" && (
+          <div className="shrink-0 pt-3">
+            <ProviderGroupsToolbar {...providerGroups.toolbarProps} />
+          </div>
+        )}
         {isOpenClawView && openclawHealthWarnings.length > 0 && (
           <OpenClawHealthBanner warnings={openclawHealthWarnings} />
         )}
@@ -1755,7 +1778,7 @@ function App() {
         open={isAddOpen}
         onOpenChange={setIsAddOpen}
         appId={activeApp}
-        onSubmit={addProvider}
+        onSubmit={handleAddProvider}
       />
 
       <EditProviderDialog

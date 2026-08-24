@@ -29,6 +29,7 @@ mod pi_config;
 mod prompt;
 mod prompt_files;
 mod provider;
+mod provider_groups;
 mod proxy;
 mod services;
 mod session_manager;
@@ -1361,6 +1362,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_providers,
+            provider_groups::get_provider_groups,
+            provider_groups::save_provider_groups,
+            provider_groups::replace_provider_group_provider_id,
+            provider_groups::remove_provider_from_groups,
             commands::get_current_provider,
             commands::add_provider,
             commands::update_provider,
