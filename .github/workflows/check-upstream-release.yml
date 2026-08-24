@@ -1,0 +1,104 @@
+name: Check upstream release
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find latest formal upstream release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_json="$(gh api 'repos/farion1231/cc-switch/releases?per_page=30')"
+          tag="$(jq -r '[.[] | select(.draft == false and .prerelease == false)] | first | .tag_name // empty' <<<"$release_json")"
+          url="$(jq -r '[.[] | select(.draft == false and .prerelease == false)] | first | .html_url // empty' <<<"$release_json")"
+          name="$(jq -r '[.[] | select(.draft == false and .prerelease == false)] | first | .name // empty' <<<"$release_json")"
+          body="$(jq -r '[.[] | select(.draft == false and .prerelease == false)] | first | .body // empty' <<<"$release_json")"
+          if [[ -z "$tag" ]]; then
+            echo "No formal upstream release found"
+            exit 0
+          fi
+          delimiter="release_body_$(openssl rand -hex 16)"
+          while grep -Fxq "$delimiter" <<<"$body"; do
+            delimiter="release_body_$(openssl rand -hex 16)"
+          done
+          {
+            echo "tag=$tag"
+            echo "url=$url"
+            echo "name=$name"
+            echo "body<<$delimiter"
+            echo "$body"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Establish silent baseline
+        if: steps.release.outputs.tag != ''
+        id: baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          previous="$(gh variable get LAST_UPSTREAM_RELEASE_TAG --repo "$GITHUB_REPOSITORY" 2>/dev/null || true)"
+          if [[ -z "$previous" ]]; then
+            gh variable set LAST_UPSTREAM_RELEASE_TAG --repo "$GITHUB_REPOSITORY" --body "$RELEASE_TAG"
+            echo "notify=false" >> "$GITHUB_OUTPUT"
+          elif [[ "$previous" == "$RELEASE_TAG" ]]; then
+            echo "notify=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "notify=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Send release notification
+        if: steps.baseline.outputs.notify == 'true'
+        env:
+          SMTP_HOST: ${{ secrets.UPSTREAM_RELEASE_SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.UPSTREAM_RELEASE_SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.UPSTREAM_RELEASE_SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.UPSTREAM_RELEASE_SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.UPSTREAM_RELEASE_SMTP_FROM }}
+          SMTP_TO: ${{ secrets.UPSTREAM_RELEASE_SMTP_TO }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_NAME: ${{ steps.release.outputs.name }}
+          RELEASE_URL: ${{ steps.release.outputs.url }}
+          RELEASE_BODY: ${{ steps.release.outputs.body }}
+        shell: python
+        run: |
+          import os
+          import smtplib
+          from email.message import EmailMessage
+
+          message = EmailMessage()
+          message["Subject"] = f"cc-switch upstream release: {os.environ['RELEASE_TAG']}"
+          message["From"] = os.environ["SMTP_FROM"]
+          message["To"] = os.environ["SMTP_TO"]
+          message.set_content(
+              f"{os.environ['RELEASE_NAME']}\n{os.environ['RELEASE_URL']}\n\n"
+              f"{os.environ['RELEASE_BODY']}"
+          )
+          port = int(os.environ["SMTP_PORT"] or "587")
+          smtp = smtplib.SMTP_SSL if port == 465 else smtplib.SMTP
+          with smtp(os.environ["SMTP_HOST"], port, timeout=30) as server:
+              if port != 465:
+                  server.starttls()
+              server.login(os.environ["SMTP_USERNAME"], os.environ["SMTP_PASSWORD"])
+              server.send_message(message)
+
+      - name: Record notified tag
+        if: steps.baseline.outputs.notify == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: gh variable set LAST_UPSTREAM_RELEASE_TAG --repo "$GITHUB_REPOSITORY" --body "$RELEASE_TAG"
